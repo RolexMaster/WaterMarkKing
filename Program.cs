@@ -1,5 +1,6 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using System.Drawing;
+using System.IO;
 using Emgu.CV;
 using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
@@ -7,9 +8,17 @@ using Emgu.Util;
 
 class Program
 {
+    static string inputFileName;// = args[0];
+    static string outputFileName;// = args[1];
+    static string text;// = args[2];
+    static int angle;// = 0;
+    static int opacity;// = 0;
+    static int fontSize;// = 0;
+    static int numberOfWatermarks;//;
+
     static void Main(string[] args)
     {
-        Console.WriteLine("Hello, World!");
+        Console.WriteLine("Hello, I am WaterMark King!");
 
         //if (args.Length != 7)
         if (args.Length < 3)
@@ -18,13 +27,13 @@ class Program
             return;
         }
 
-        string inputFileName = args[0];
-        string outputFileName = args[1];
-        string text = args[2];
-        int angle = 0;
-        int opacity = 0;
-        int fontSize = 0;
-        int numberOfWatermarks = 0;
+         inputFileName = args[0];
+         outputFileName = args[1];
+         text = args[2];
+         angle = 0;
+         opacity = 0;
+         fontSize = 0;
+         numberOfWatermarks = 0;
 
         if (args.Length != 7)
         {
@@ -46,7 +55,18 @@ class Program
                 return;
             }
         }
-     
+
+        if (Directory.Exists(inputFileName))
+        {
+            Console.WriteLine($"{inputFileName}는 디렉터리입니다.");
+
+            //디렉터리안에있는 모든 파일을 전부 변환
+            TraverseDirectory(inputFileName);
+        }
+        else
+        {
+            Console.WriteLine($"{inputFileName}는 디렉터리가 아닙니다.");
+        }
 
         Console.WriteLine($"inputFileName: {inputFileName}");
         Console.WriteLine($"outputFileName: {outputFileName}");
@@ -60,6 +80,32 @@ class Program
             text, angle, opacity, fontSize, numberOfWatermarks);
 
     }
+    static string AddSuffixBeforeExtension(string path, string suffix)
+    {
+        string directory = Path.GetDirectoryName(path);
+        string filenameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+        string extension = Path.GetExtension(path);
+
+        string newFilename = $"{filenameWithoutExtension}{suffix}{extension}";
+        return Path.Combine(directory, newFilename);
+    }
+    static void TraverseDirectory(string path)
+    {
+        // 현재 디렉터리의 모든 파일을 출력
+        foreach (string file in Directory.GetFiles(path))
+        {
+            Console.WriteLine(file);
+            string newName = AddSuffixBeforeExtension(file, "_w");
+            MakeWaterMarkImage(file, newName,
+          text, angle, opacity, fontSize, numberOfWatermarks);
+        }
+
+        // 현재 디렉터리의 모든 하위 디렉터리를 탐색
+        foreach (string directory in Directory.GetDirectories(path))
+        {
+            TraverseDirectory(directory);
+        }
+    }
     static bool MakeWaterMarkImage(string inputFileName, string outputFileName, string text, int angle, int opacity, int fontSize, int numberOfWatermarks)
     {
         Image<Bgra, byte> imgInput;
@@ -69,9 +115,10 @@ class Program
         {
             imgInput = new Image<Bgra, byte>(inputFileName);
         }
-        catch (Exception)
+        catch (Exception e)
         {
             // Failed to load the input image
+            Console.WriteLine(e.Message);
             return false;
         }
 
