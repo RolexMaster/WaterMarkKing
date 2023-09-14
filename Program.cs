@@ -1,10 +1,13 @@
-﻿// See https://aka.ms/new-console-template for more information
-using System.Drawing;
-using System.IO;
-using Emgu.CV;
-using Emgu.CV.CvEnum;
-using Emgu.CV.Structure;
-using Emgu.Util;
+﻿using System;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.Fonts;
+using SixLabors.ImageSharp.Drawing;
+using SixLabors.ImageSharp.Drawing.Processing;
+using System.Numerics;
+using SixLabors.ImageSharp.PixelFormats;
+
+using Path = System.IO.Path;
 
 class Program
 {
@@ -19,29 +22,24 @@ class Program
     static void Main(string[] args)
     {
         Console.WriteLine("Hello, I am WaterMark King!");
-
         //if (args.Length != 7)
         if (args.Length < 3)
         {
             Console.WriteLine("올바른 파라미터 수가 아닙니다.");
             return;
         }
-
-         inputFileName = args[0];
-         outputFileName = args[1];
-         text = args[2];
-         angle = 0;
-         opacity = 0;
-         fontSize = 0;
-         numberOfWatermarks = 0;
-
+        inputFileName = args[0];
+        outputFileName = args[1];
+        text = args[2];
+        angle = 0;
+        opacity = 0;
+        fontSize = 0;
         if (args.Length != 7)
         {
             //디폴트 값 사용
             angle = 45;
-            opacity = 10;
-            fontSize = 16;
-            numberOfWatermarks = 10;
+            opacity = 20;//1~100
+            fontSize = 12;
         }
         else
         {
@@ -56,6 +54,13 @@ class Program
             }
         }
 
+        Console.WriteLine($"inputFileName: {inputFileName}");
+        Console.WriteLine($"outputFileName: {outputFileName}");
+        Console.WriteLine($"text: {text}");
+        Console.WriteLine($"angle: {angle}");
+        Console.WriteLine($"opacity: {opacity}");
+        Console.WriteLine($"fontSize: {fontSize}");
+
         if (Directory.Exists(inputFileName))
         {
             Console.WriteLine($"{inputFileName}는 디렉터리입니다.");
@@ -68,26 +73,89 @@ class Program
             Console.WriteLine($"{inputFileName}는 디렉터리가 아닙니다.");
         }
 
-        Console.WriteLine($"inputFileName: {inputFileName}");
-        Console.WriteLine($"outputFileName: {outputFileName}");
-        Console.WriteLine($"text: {text}");
-        Console.WriteLine($"angle: {angle}");
-        Console.WriteLine($"opacity: {opacity}");
-        Console.WriteLine($"fontSize: {fontSize}");
-        Console.WriteLine($"numberOfWatermarks: {numberOfWatermarks}");
+      
+    
+
+
 
         MakeWaterMarkImage(inputFileName, outputFileName,
-            text, angle, opacity, fontSize, numberOfWatermarks);
+            text, angle, opacity, fontSize);
 
     }
+
+
+
     static string AddSuffixBeforeExtension(string path, string suffix)
     {
         string directory = Path.GetDirectoryName(path);
         string filenameWithoutExtension = Path.GetFileNameWithoutExtension(path);
         string extension = Path.GetExtension(path);
-
         string newFilename = $"{filenameWithoutExtension}{suffix}{extension}";
         return Path.Combine(directory, newFilename);
+    }
+
+    static bool MakeWaterMarkImage(string inputFileName, string outputFileName,
+        string watermarkText, int angle, int opacity, int fontSizeWeight)
+    {
+        using (Image image = Image.Load(inputFileName))
+        {
+            var div = 5;
+            var fontSize = image.Width / div / fontSizeWeight;
+
+            Font font = SystemFonts.CreateFont("Arial", fontSize);
+            var brush = new SolidBrush(Color.WhiteSmoke);
+            var position = new PointF(image.Width / 2, image.Height / 2);
+
+
+            image.Mutate(x =>
+            {
+                var rendererOptions = new TextOptions(font);
+                var size = TextMeasurer.MeasureSize(watermarkText, rendererOptions);
+                var textLocation = new PointF((image.Width - size.Width) / 2, (image.Height - size.Height) / 2);
+                var textCenter = new PointF((image.Width) / 2, (image.Height) / 2);
+
+                List<PointF> startPoints = new List<PointF>();
+                List<PointF> centerPoints = new List<PointF>();
+
+                var xtick = image.Width / div;
+                var ytick = image.Height / div;
+
+                for (int i = 0; i < div - 1; i++)
+                {
+                    for (int j = 0; j < div - 1; j++)
+                    {
+                        var xpos = xtick * (i + 1);
+                        var ypos = ytick * (j + 1);
+
+                        startPoints.Add(new PointF(xpos - (size.Width * 0.7f), ypos));
+                        centerPoints.Add(new PointF(xpos, ypos));
+                    }
+                }
+
+                for (int i = 0; i < startPoints.Count(); i++)
+                {
+                    x.DrawText(
+                 new DrawingOptions
+                 {
+                     GraphicsOptions = new GraphicsOptions
+                     {
+                         Antialias = true,
+                         BlendPercentage = 0.2f,
+
+                     },
+                     Transform = Matrix3x2Extensions.CreateRotationDegrees(45, centerPoints[i])
+                 },
+                watermarkText,
+                font,
+                brush,
+                startPoints[i]);
+                }
+            });
+
+            image.Save(outputFileName);
+
+            return true;
+        }
     }
     static void TraverseDirectory(string path)
     {
@@ -97,90 +165,12 @@ class Program
             Console.WriteLine(file);
             string newName = AddSuffixBeforeExtension(file, "_w");
             MakeWaterMarkImage(file, newName,
-          text, angle, opacity, fontSize, numberOfWatermarks);
+          text, angle, opacity, fontSize);
         }
-
         // 현재 디렉터리의 모든 하위 디렉터리를 탐색
         foreach (string directory in Directory.GetDirectories(path))
         {
             TraverseDirectory(directory);
         }
     }
-    static bool MakeWaterMarkImage(string inputFileName, string outputFileName, string text, int angle, int opacity, int fontSize, int numberOfWatermarks)
-    {
-        Image<Bgra, byte> imgInput;
-
-        // Load the input image
-        try
-        {
-            imgInput = new Image<Bgra, byte>(inputFileName);
-        }
-        catch (Exception e)
-        {
-            // Failed to load the input image
-            Console.WriteLine(e.Message);
-            return false;
-        }
-
-        // Watermark text and style
-        string watermark = text;
-        MCvScalar color = new MCvScalar(255, 255, 255);
-        int thickness = 2;
-        FontFace font = FontFace.HersheyDuplex;
-        double fontScale = fontSize / 10.0;
-
-        // Define the number of watermarks to add
-        int numberOfWatermarksToAdd = Math.Min(15, numberOfWatermarks);
-
-        // Calculate the number of rows and columns to distribute watermarks
-        int maxColumns = Math.Min(3, numberOfWatermarksToAdd);
-        int numRows = (int)Math.Ceiling((double)numberOfWatermarksToAdd / maxColumns);
-        int rowSpacing = imgInput.Height / (numRows + 1);
-        int colSpacing = imgInput.Width / (maxColumns + 1);
-
-        int watermarkCount = 0;
-        for (int row = 1; row <= numRows && watermarkCount < numberOfWatermarksToAdd; row++)
-        {
-            for (int col = 1; col <= maxColumns && watermarkCount < numberOfWatermarksToAdd; col++)
-            {
-                int x = col * colSpacing;
-                int y = row * rowSpacing;
-
-                Point position = new Point(x, y);
-
-                // Apply rotation to the watermark
-                using (Image<Bgra, byte> rotatedWatermark = new Image<Bgra, byte>(imgInput.Width, imgInput.Height, new Bgra(0, 0, 0, 0)))
-                {
-                    CvInvoke.PutText(rotatedWatermark, watermark, position, font, fontScale, color, thickness, LineType.EightConnected);
-
-                    // Create a rotation matrix
-                    Matrix<double> rotationMatrix = new Matrix<double>(2, 3);
-                    PointF center = new PointF(rotatedWatermark.Width / 2f, rotatedWatermark.Height / 2f);
-                    CvInvoke.GetRotationMatrix2D(center, angle, 1.0, rotationMatrix);
-
-                    // Apply rotation to the watermark
-                    CvInvoke.WarpAffine(rotatedWatermark, rotatedWatermark, rotationMatrix, rotatedWatermark.Size);
-
-                    // Overlay the rotated watermark on the original image
-                    CvInvoke.AddWeighted(imgInput, 1.0, rotatedWatermark, opacity / 100.0, 0, imgInput);
-                }
-
-                watermarkCount++;
-            }
-        }
-
-        // Save the watermarked image to the output file
-        try
-        {
-            imgInput.Save(outputFileName);
-        }
-        catch (Exception)
-        {
-            // Failed to save the watermarked image
-            return false;
-        }
-
-        return true;
-    }
 }
-
