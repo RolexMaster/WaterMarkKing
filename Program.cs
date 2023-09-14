@@ -71,16 +71,10 @@ class Program
         else
         {
             Console.WriteLine($"{inputFileName}는 디렉터리가 아닙니다.");
+
+            MakeWaterMarkImage(inputFileName, outputFileName,
+                text, angle, opacity, fontSize);
         }
-
-      
-    
-
-
-
-        MakeWaterMarkImage(inputFileName, outputFileName,
-            text, angle, opacity, fontSize);
-
     }
 
 
